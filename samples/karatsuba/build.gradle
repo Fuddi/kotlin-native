@@ -1,0 +1,9 @@
+apply plugin: 'konan'
+
+konanArtifacts {
+    karatsubaBase {  }
+
+    karatsubaOpt {
+        enableOptimization()
+    }
+}
