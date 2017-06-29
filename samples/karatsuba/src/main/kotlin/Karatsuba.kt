@@ -90,8 +90,8 @@ class KaratsubaNonBox(level: Int, val a: LongArray, val b: LongArray): Karatsuba
     fun productScan(scanA : LongArray, scanB : LongArray) : LongArray {
         val r : LongArray = LongArray(scanA.size + scanB.size, {0});
 
-        for (i in 0 until scanA.size) {
-            for (j in 0 until scanB.size) {
+        for (i in 0..scanA.size - 1) {
+            for (j in 0..scanB.size - 1) {
                 r[i + j] += scanA[i] * scanB[j];
             }
         }

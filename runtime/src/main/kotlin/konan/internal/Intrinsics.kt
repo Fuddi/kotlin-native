@@ -19,6 +19,7 @@ package konan.internal
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.NativePointed
 import kotlinx.cinterop.NativePtr
+import kotlin.internal.getProgressionLastElement
 
 @Intrinsic external fun areEqualByValue(first: Boolean, second: Boolean): Boolean
 @Intrinsic external fun areEqualByValue(first: Char, second: Char): Boolean
