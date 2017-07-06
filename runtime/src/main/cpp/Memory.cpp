@@ -94,7 +94,7 @@ struct MemoryState {
 namespace {
 
 // TODO: can we pass this variable as an explicit argument?
-__thread MemoryState* memoryState = nullptr;
+THREAD_LOCAL_VARIABLE MemoryState* memoryState = nullptr;
 
 // TODO: use those allocators for STL containers as well.
 template <typename T>
@@ -651,6 +651,13 @@ OBJ_GETTER(InitInstance,
 
   ObjHeader* object = AllocInstance(type_info, OBJ_RESULT);
   UpdateRef(location, object);
+#if KONAN_NO_EXCEPTIONS
+  ctor(object);
+#if TRACE_MEMORY
+  memoryState->globalObjects->push_back(location);
+#endif
+  return object;
+#else
   try {
     ctor(object);
 #if TRACE_MEMORY
@@ -662,6 +669,7 @@ OBJ_GETTER(InitInstance,
     UpdateRef(location, nullptr);
     throw;
   }
+#endif
 }
 
 void SetRef(ObjHeader** location, const ObjHeader* object) {
@@ -884,7 +892,9 @@ OBJ_GETTER(DerefStablePointer, KNativePtr pointer) {
 }
 
 OBJ_GETTER(AdoptStablePointer, KNativePtr pointer) {
+#ifndef KONAN_NO_THREADS
   __sync_synchronize();
+#endif
   KRef ref = reinterpret_cast<KRef>(pointer);
   // Somewhat hacky.
   *OBJ_RESULT = ref;

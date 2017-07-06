@@ -92,6 +92,12 @@ String getTargetArg(String target) {
     return result
 }
 
+List<String> getClangFlags(String sysrootDir, String target) {
+    def result = konanProperties.getProperty("clangFlags.$target")
+    if (result == null) return []
+    return result.split(' ').collect { it.replaceAll('<sysrootDir>', sysrootDir) }
+}
+
 void setupCompilationFlags() {
     ext.clangPath = ["$llvmDir/bin"]
     ext.clangArgs = []
@@ -99,50 +105,55 @@ void setupCompilationFlags() {
     final String binDir
 
     if (isLinux()) {
-    ext.host = "linux"
-    ext.targetArgs <<
-        [(ext.host):
-           ["--sysroot=${gccToolchainDir}/${gnuTriplet}/sysroot",
-            "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=64"],
-         "raspberrypi":
-           ["-target", getTargetArg("raspberrypi"),
-            "-mfpu=vfp", "-mfloat-abi=hard",
-            "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=32",
-            "--sysroot=$raspberrypiSysrootDir",
-            // TODO: those two are hacks.
-            "-I$raspberrypiSysrootDir/usr/include/c++/4.8.3",
-            "-I$raspberrypiSysrootDir/usr/include/c++/4.8.3/arm-linux-gnueabihf"]
-        ]
+        ext.host = "linux"
+        ext.targetArgs <<
+                [(ext.host)   :
+                         ["--sysroot=${gccToolchainDir}/${gnuTriplet}/sysroot",
+                          "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=64"],
+                 "raspberrypi":
+                         ["-target", getTargetArg("raspberrypi"),
+                          "-mfpu=vfp", "-mfloat-abi=hard",
+                          "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=32",
+                          "--sysroot=$raspberrypiSysrootDir",
+                          // TODO: those two are hacks.
+                          "-I$raspberrypiSysrootDir/usr/include/c++/4.8.3",
+                          "-I$raspberrypiSysrootDir/usr/include/c++/4.8.3/arm-linux-gnueabihf"]
+                ]
     } else if (isWindows()) {
         ext.host = "mingw"
         ext.targetArgs <<
                 [(ext.host):
                          ["-target", "x86_64-w64-mingw32", "--sysroot=${mingwWithLlvmDir}",
                           "-DUSE_GCC_UNWIND=1", "-DUSE_PE_COFF_SYMBOLS=1", "-DKONAN_WINDOWS=1"]]
-    } else {
-         ext.host = "macbook"
-         ext.targetArgs <<
-            [(ext.host):
-                ["--sysroot=$macbookSysrootDir", "-mmacosx-version-min=10.11"],
-             "iphone":
-                ["-stdlib=libc++", "-arch", "arm64", "-isysroot", "$iphoneSysrootDir",
-                 "-miphoneos-version-min=8.0.0"]
+    } else if (isMac()) {
+        ext.host = "macbook"
+        ext.targetArgs <<
+                [(ext.host):
+                         ["--sysroot=$macbookSysrootDir", "-mmacosx-version-min=10.11"],
+                 "iphone"  :
+                         ["-stdlib=libc++", "-arch", "arm64", "-isysroot", "$iphoneSysrootDir",
+                          "-miphoneos-version-min=8.0.0"],
+                 "wasm32"  :
+                         ["--sysroot=$wasm32SysrootDir", "-target", getTargetArg("wasm32")]
+                                 + getClangFlags(wasm32SysrootDir, "wasm32")
 // TODO: re-enable after simulator sysroot is available in the dependencies
 //             "iphone_sim":
 //                ["-stdlib=libc++", "-isysroot", "$iphoneSimSysrootDir", "-miphoneos-version-min=8.0.0"],
-            ]
-     }
+                ]
+    } else {
+        throw new Error("Unsupported host platform")
+    }
 
-     if (isLinux() || isMac()) {
-         ext.targetArgs << [
-                 "android_arm32":
-                         ["-target", getTargetArg("android_arm32"),
-                          "--sysroot=$android_arm32SysrootDir",
-                          "-D__ANDROID__", "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=32", "-DKONAN_ANDROID",
-                          // HACKS!
-                          "-I$android_arm32SysrootDir/usr/include/c++/4.9.x",
-                          "-I$android_arm32SysrootDir/usr/include/c++/4.9.x/arm-linux-androideabi"],
-                 "android_arm64":
+    if (isLinux() || isMac()) {
+        ext.targetArgs << [
+                "android_arm32":
+                        ["-target", getTargetArg("android_arm32"),
+                         "--sysroot=$android_arm32SysrootDir",
+                         "-D__ANDROID__", "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=32", "-DKONAN_ANDROID",
+                         // HACKS!
+                         "-I$android_arm32SysrootDir/usr/include/c++/4.9.x",
+                         "-I$android_arm32SysrootDir/usr/include/c++/4.9.x/arm-linux-androideabi"],
+                "android_arm64":
                         ["-target", getTargetArg("android_arm64"),
                          "--sysroot=$android_arm64SysrootDir",
                          "-D__ANDROID__", "-DUSE_GCC_UNWIND=1", "-DUSE_ELF_SYMBOLS=1", "-DELFSIZE=64", "-DKONAN_ANDROID",
@@ -150,7 +161,7 @@ void setupCompilationFlags() {
                          "-I$android_arm64SysrootDir/usr/include/c++/4.9.x",
                          "-I$android_arm64SysrootDir/usr/include/c++/4.9.x/aarch64-linux-android"]
 
-         ]
+        ]
     }
 
     ext.targetList = ext.targetArgs.keySet() as List
@@ -158,7 +169,7 @@ void setupCompilationFlags() {
     if (isLinux()) {
         binDir = "$gccToolchainDir/$gnuTriplet/bin"
         ext.clangArgs.addAll([
-            "--gcc-toolchain=$gccToolchainDir"
+                "--gcc-toolchain=$gccToolchainDir"
         ])
     } else if (isWindows()) {
         binDir = "$mingwWithLlvmDir/bin"
@@ -166,7 +177,7 @@ void setupCompilationFlags() {
         binDir = "$macbookSysrootDir/usr/bin"
     }
     ext.clangArgs << "-B$binDir"
-    ext.hostClangArgs = ext.clangArgs.clone() 
+    ext.hostClangArgs = ext.clangArgs.clone()
     ext.hostClangArgs.addAll(ext.targetArgs[host])
 
     ext.clangPath << binDir
@@ -180,7 +191,7 @@ void loadLocalProperties() {
     if (new File("$project.rootDir/local.properties").exists()) {
         Properties props = new Properties()
         props.load(new FileInputStream("$project.rootDir/local.properties"))
-        props.each {prop -> project.ext.set(prop.key, prop.value)}
+        props.each { prop -> project.ext.set(prop.key, prop.value) }
     }
 }
 
@@ -189,11 +200,11 @@ void loadCommandLineProperties() {
         throw new Error("Specify either -Ptest_flags or -Pbuild_flags.")
     }
     ext.globalBuildArgs = project.hasProperty("build_flags")
-        ? ext.build_flags.split(' ') : []
+    ? ext.build_flags.split(' '): []
     ext.globalTestArgs = project.hasProperty("test_flags")
-        ? ext.test_flags.split(' ') : []
+    ? ext.test_flags.split(' '): []
     ext.testTarget = project.hasProperty("test_target")
-        ? ext.test_target : null
+    ? ext.test_target: null
 }
 
 class PlatformInfo {

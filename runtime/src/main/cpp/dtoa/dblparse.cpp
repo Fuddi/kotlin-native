@@ -145,31 +145,31 @@ static const KDouble tens[] = {
  * than twice.
  */
 #define INCREMENT_DOUBLE(_x, _decCount, _incCount) \
-	{ \
-		++DOUBLE_TO_LONGBITS(_x); \
-		_incCount++; \
-		if( (_incCount > 2) && (_decCount > 2) ) { \
-			if( _decCount > _incCount ) { \
-				DOUBLE_TO_LONGBITS(_x) += _decCount - _incCount; \
-			} else if( _incCount > _decCount ) { \
-				DOUBLE_TO_LONGBITS(_x) -= _incCount - _decCount; \
-			} \
-			break; \
-		} \
-	}
+        { \
+                ++DOUBLE_TO_LONGBITS(_x); \
+                _incCount++; \
+                if( (_incCount > 2) && (_decCount > 2) ) { \
+                        if( _decCount > _incCount ) { \
+                                DOUBLE_TO_LONGBITS(_x) += _decCount - _incCount; \
+                        } else if( _incCount > _decCount ) { \
+                                DOUBLE_TO_LONGBITS(_x) -= _incCount - _decCount; \
+                        } \
+                        break; \
+                } \
+        }
 #define DECREMENT_DOUBLE(_x, _decCount, _incCount) \
-	{ \
-		--DOUBLE_TO_LONGBITS(_x); \
-		_decCount++; \
-		if( (_incCount > 2) && (_decCount > 2) ) { \
-			if( _decCount > _incCount ) { \
-				DOUBLE_TO_LONGBITS(_x) += _decCount - _incCount; \
-			} else if( _incCount > _decCount ) { \
-				DOUBLE_TO_LONGBITS(_x) -= _incCount - _decCount; \
-			} \
-			break; \
-		} \
-	}
+        { \
+                --DOUBLE_TO_LONGBITS(_x); \
+                _decCount++; \
+                if( (_incCount > 2) && (_decCount > 2) ) { \
+                        if( _decCount > _incCount ) { \
+                                DOUBLE_TO_LONGBITS(_x) += _decCount - _incCount; \
+                        } else if( _incCount > _decCount ) { \
+                                DOUBLE_TO_LONGBITS(_x) -= _incCount - _decCount; \
+                        } \
+                        break; \
+                } \
+        }
 #define ERROR_OCCURED(x) (HIGH_I32_FROM_VAR(x) < 0)
 
 #define allocateU64(x, n) if (!((x) = (U_64*) malloc((n) * sizeof(U_64)))) goto OutOfMemory;
@@ -641,7 +641,7 @@ KDouble Konan_FloatingPointParser_parseDoubleImpl (KString s, KInt e)
 {
   const KChar* utf16 = CharArrayAddressOfElementAt(s, 0);
   std::string utf8;
-  utf8::utf16to8(utf16, utf16 + s->count_, back_inserter(utf8));
+  utf8::unchecked::utf16to8(utf16, utf16 + s->count_, back_inserter(utf8));
   const char *str = utf8.c_str();
   auto dbl = createDouble (str, e);
 

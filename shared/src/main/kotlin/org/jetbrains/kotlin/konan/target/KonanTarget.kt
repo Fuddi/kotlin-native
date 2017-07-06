@@ -24,7 +24,8 @@ enum class KonanTarget(val targetSuffix: String, val programSuffix: String, var 
     LINUX("linux", "kexe"),
     MINGW("mingw", "exe"),
     MACBOOK("osx", "kexe"),
-    RASPBERRYPI("raspberrypi", "kexe")
+    RASPBERRYPI("raspberrypi", "kexe"),
+    WASM32("wasm32", "kexe")
 }
 
 enum class CompilerOutputKind {
@@ -64,6 +65,7 @@ class TargetManager(val userRequest: String? = null) {
                 KonanTarget.IPHONE_SIM.enabled = true
                 KonanTarget.ANDROID_ARM32.enabled = true
                 KonanTarget.ANDROID_ARM64.enabled = true
+                KonanTarget.WASM32.enabled = true
             }
             else ->
                 error("Unknown host platform: $host")
@@ -110,11 +112,6 @@ class TargetManager(val userRequest: String? = null) {
                 javaOsName.startsWith("Windows") -> "windows"
                 else -> error("Unknown operating system: ${javaOsName}")
             }
-        }
-
-        fun simpleOsName(): String {
-            val hostOs = host_os()
-            return if (hostOs == "osx") "macos" else hostOs
         }
 
         fun host_arch(): String { 
