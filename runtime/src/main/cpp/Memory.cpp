@@ -29,11 +29,12 @@
 
 // If garbage collection algorithm for cyclic garbage to be used.
 #define USE_GC 1
+
 // Optmize management of cyclic garbage (increases memory footprint).
 // Not recommended for low-end embedded targets.
 #define OPTIMIZE_GC 1
 // Define to 1 to print all memory operations.
-#define TRACE_MEMORY 0
+#define TRACE_MEMORY 1
 // Trace garbage collection phases.
 #define TRACE_GC_PHASES 0
 
@@ -127,6 +128,16 @@ inline ObjHeader** asArenaSlot(ObjHeader** slot) {
       reinterpret_cast<uintptr_t>(slot) & ~ARENA_BIT);
 }
 
+inline container_size_t objectSize(const ObjHeader* obj) {
+  const TypeInfo* type_info = obj->type_info();
+  container_size_t size = type_info->instanceSize_ < 0 ?
+      // An array.
+      ArrayDataSizeBytes(obj->array()) + sizeof(ArrayHeader)
+      :
+      type_info->instanceSize_ + sizeof(ObjHeader);
+  return alignUp(size, kObjectAlignment);
+}
+
 #if USE_GC
 
 inline uint32_t hashOf(ContainerHeader* container) {
@@ -218,25 +229,29 @@ inline void initThreshold(MemoryState* state, uint32_t gcThreshold) {
 ContainerHeaderList collectMutableReferred(ContainerHeader* header) {
   ContainerHeaderList result;
   ObjHeader* obj = reinterpret_cast<ObjHeader*>(header + 1);
-  const TypeInfo* typeInfo = obj->type_info();
-  // TODO: generalize iteration over all references.
-  // TODO: this code relies on single object per container assumption.
-  for (int index = 0; index < typeInfo->objOffsetsCount_; index++) {
-    ObjHeader** location = reinterpret_cast<ObjHeader**>(
-      reinterpret_cast<uintptr_t>(obj + 1) + typeInfo->objOffsets_[index]);
-    ObjHeader* ref = *location;
-    if (ref != nullptr && !isPermanent(ref->container())) {
-      result.push_back(ref->container());
+  for (int index = 0; index < header->objectCount_; index++) {
+    const TypeInfo* typeInfo = obj->type_info();
+    // TODO: generalize iteration over all references.
+    // TODO: this code relies on single object per container assumption.
+    for (int index = 0; index < typeInfo->objOffsetsCount_; index++) {
+        ObjHeader** location = reinterpret_cast<ObjHeader**>(
+        reinterpret_cast<uintptr_t>(obj + 1) + typeInfo->objOffsets_[index]);
+        ObjHeader* ref = *location;
+        if (ref != nullptr && !isPermanent(ref->container())) {
+            result.push_back(ref->container());
+        }
     }
-  }
-  if (typeInfo == theArrayTypeInfo) {
-    ArrayHeader* array = obj->array();
-    for (int index = 0; index < array->count_; index++) {
-      ObjHeader* ref = *ArrayAddressOfElementAt(array, index);
-      if (ref != nullptr && !isPermanent(ref->container())) {
-        result.push_back(ref->container());
-      }
-    }
+    if (typeInfo == theArrayTypeInfo) {
+        ArrayHeader* array = obj->array();
+        for (int index = 0; index < array->count_; index++) {
+            ObjHeader* ref = *ArrayAddressOfElementAt(array, index);
+            if (ref != nullptr && !isPermanent(ref->container())) {
+                result.push_back(ref->container());
+            }
+        }
+     }
+     obj = reinterpret_cast<ObjHeader*>(
+           reinterpret_cast<uintptr_t>(obj) + objectSize(obj));
   }
   return result;
 }
@@ -333,17 +348,6 @@ inline ArenaContainer* initedArena(ObjHeader** auxSlot) {
   return arena;
 }
 
-// TODO: shall we do padding for alignment?
-inline container_size_t objectSize(const ObjHeader* obj) {
-  const TypeInfo* type_info = obj->type_info();
-  container_size_t size = type_info->instanceSize_ < 0 ?
-      // An array.
-      ArrayDataSizeBytes(obj->array()) + sizeof(ArrayHeader)
-      :
-      type_info->instanceSize_ + sizeof(ObjHeader);
-  return alignUp(size, kObjectAlignment);
-}
-
 }  // namespace
 
 ContainerHeader* AllocContainer(size_t size) {
@@ -398,6 +402,9 @@ void FreeContainer(ContainerHeader* header) {
 
 #if USE_GC
 void FreeContainerNoRef(ContainerHeader* header) {
+  if (!isFreeable(header)) {
+    printf("%p %x", header, header->refCount_);
+    }
   RuntimeAssert(isFreeable(header), "this kind of container shalln't be freed");
 #if TRACE_MEMORY
   fprintf(stderr, "<<< free %p\n", header);
@@ -741,6 +748,7 @@ void ReleaseRefs(ObjHeader** start, int count) {
 
 #if USE_GC
 void GarbageCollect() {
+  printf("Garbage collect\n");
   MemoryState* state = memoryState;
   RuntimeAssert(state->toFree != nullptr, "GC must not be stopped");
   RuntimeAssert(!state->gcInProgress, "Recursive GC is disallowed");
